@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:campuseats/main.dart';
+import 'package:campuseats/models/models.dart';
 import 'package:campuseats/viewmodels/auth_view_model.dart';
 import 'package:campuseats/viewmodels/order_view_model.dart';
 
@@ -128,21 +129,88 @@ void main() {
     expect(find.text('ORDER FOOD'), findsNothing);
   });
 
-  testWidgets('stall staff log in and manage their own stall', (tester) async {
+  testWidgets('stall staff land on the dashboard for their own stall', (
+    tester,
+  ) async {
     await pumpApp(tester);
     await tester.tap(find.text('Stall staff'));
     await tester.pump();
     await logIn(tester, email: 'staff@campus.edu', password: 'staff123');
 
+    // straight to the dashboard, no customer home in between
     expect(find.text('Kumusta, Nena'), findsOneWidget);
-    expect(find.text('MANAGE MY STALL'), findsOneWidget);
-    expect(find.text('ORDER FOOD'), findsNothing);
-
-    await tester.tap(find.text('MANAGE MY STALL'));
-    await tester.pumpAndSettle();
-
     expect(find.text("Aling Nena's Karinderya"), findsOneWidget);
-    expect(find.text('INCOMING ORDERS'), findsOneWidget);
+    expect(find.text('Open for orders'), findsOneWidget);
+    expect(find.text('ORDER FOOD'), findsNothing);
+    expect(find.text('Nearby locations'.toUpperCase()), findsNothing);
+    expect(find.text('Menu'), findsOneWidget);
+    expect(find.textContaining('No orders yet'), findsOneWidget);
+  });
+
+  testWidgets('staff see orders from customers and can move them along', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final store = OrderViewModel();
+    final auth = AuthViewModel();
+
+    // Maria (student) orders from Aling Nena's, then the staff log in
+    final maria = AppUser(
+      name: 'Maria Santos',
+      email: 'student@campus.edu',
+      password: 'student123',
+      role: UserRole.student,
+      idNumber: '2024-00123',
+    );
+    store.startOrder(customer: maria);
+    store.placeOrder();
+    store.endSession(); // what logging out does
+
+    await tester.pumpWidget(CampusEatsApp(store: store, auth: auth));
+    await tester.tap(find.text('Stall staff'));
+    await tester.pump();
+    await logIn(tester, email: 'staff@campus.edu', password: 'staff123');
+
+    expect(find.text('Maria Santos'), findsOneWidget);
+    expect(find.text('#0001'), findsOneWidget);
+    expect(find.text('Order placed'), findsOneWidget);
+
+    await tester.tap(find.text('START PREPARING'));
+    await tester.pumpAndSettle();
+    expect(find.text('Being prepared'), findsOneWidget);
+    expect(store.orders.first.status, OrderStatus.preparing);
+
+    await tester.tap(find.text('MARK READY'));
+    await tester.pumpAndSettle();
+    expect(find.text('Ready for pickup'), findsOneWidget);
+  });
+
+  testWidgets('staff only see orders for their own stall', (tester) async {
+    tester.view.physicalSize = const Size(800, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final store = OrderViewModel();
+    final auth = AuthViewModel();
+
+    // an order at a different stall than the staff member's
+    store.selectPlace(store.places[1]);
+    store.startOrder();
+    store.placeOrder();
+    store.endSession();
+
+    await tester.pumpWidget(CampusEatsApp(store: store, auth: auth));
+    await tester.tap(find.text('Stall staff'));
+    await tester.pump();
+    await logIn(tester, email: 'staff@campus.edu', password: 'staff123');
+
+    expect(find.text('#0001'), findsNothing);
+    expect(find.textContaining('No orders yet'), findsOneWidget);
   });
 
   testWidgets('students cannot see stall management', (tester) async {

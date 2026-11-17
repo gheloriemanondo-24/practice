@@ -64,6 +64,92 @@ void main() {
     });
   });
 
+  group('customers and stalls', () {
+    const maria = AppUser(
+      name: 'Maria Santos',
+      email: 'student@campus.edu',
+      password: 'x',
+      role: UserRole.student,
+      idNumber: '1',
+    );
+    const jose = AppUser(
+      name: 'Jose Reyes',
+      email: 'teacher@campus.edu',
+      password: 'x',
+      role: UserRole.teacher,
+      idNumber: '2',
+    );
+
+    test('an order remembers who placed it', () {
+      final store = OrderViewModel();
+      store.startOrder(customer: jose);
+      final order = store.placeOrder();
+
+      expect(order.customerName, 'Jose Reyes');
+      expect(order.customerEmail, 'teacher@campus.edu');
+      expect(order.customerRole, UserRole.teacher);
+    });
+
+    test('each person only gets their own orders back', () {
+      final store = OrderViewModel();
+      store.startOrder(customer: maria);
+      final mine = store.placeOrder();
+      store.startOrder(customer: jose);
+      final his = store.placeOrder();
+
+      expect(store.ordersBy(maria.email), [mine]);
+      expect(store.ordersBy(jose.email), [his]);
+      expect(store.lastOrderBy(maria.email), mine);
+      expect(store.ordersBy(null), isEmpty);
+      expect(store.lastOrderBy('nobody@campus.edu'), isNull);
+    });
+
+    test('a stall sees only the orders placed at that stall', () {
+      final store = OrderViewModel();
+      final first = store.places[0];
+      final second = store.places[1];
+
+      store.selectPlace(first);
+      store.startOrder(customer: maria);
+      final atFirst = store.placeOrder();
+      store.selectPlace(second);
+      store.startOrder(customer: maria);
+      final atSecond = store.placeOrder();
+
+      expect(store.ordersFor(first), [atFirst]);
+      expect(store.ordersFor(second), [atSecond]);
+    });
+
+    test('logging out keeps orders and stall edits for the stall to see', () {
+      final store = OrderViewModel();
+      store.startOrder(customer: maria);
+      final order = store.placeOrder();
+      store.setOpen(store.selectedPlace, false);
+      store.endSession();
+
+      expect(store.orders, [order]);
+      expect(store.cart, isEmpty);
+      expect(store.places.first.open, isFalse);
+    });
+
+    test('staff can decline an order until it is ready', () {
+      final store = OrderViewModel();
+      final waiting = placeOne(store);
+      expect(store.canDecline(waiting), isTrue);
+      store.declineOrder(waiting);
+      expect(waiting.status, OrderStatus.cancelled);
+
+      final cooking = placeOne(store);
+      store.advanceStatus(cooking);
+      expect(store.canDecline(cooking), isTrue);
+
+      store.advanceStatus(cooking); // ready
+      expect(store.canDecline(cooking), isFalse);
+      store.declineOrder(cooking);
+      expect(cooking.status, OrderStatus.ready);
+    });
+  });
+
   group('stall management', () {
     test('closing a stall stops orders and keeps it selected', () {
       final store = OrderViewModel();

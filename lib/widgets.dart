@@ -337,3 +337,62 @@ class ErrorBanner extends StatelessWidget {
     );
   }
 }
+
+// "Kumusta, Maria" with a role badge and a log out button
+class UserStrip extends StatelessWidget {
+  const UserStrip({super.key, required this.user, required this.onLogOut});
+
+  final AppUser user;
+  final VoidCallback onLogOut;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 10,
+            runSpacing: 6,
+            children: [
+              Text(
+                'Kumusta, ${user.firstName}',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 3,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.tomatoSoft,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppColors.rule),
+                ),
+                child: Text(
+                  user.role.label,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.muted,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        TextButton.icon(
+          onPressed: onLogOut,
+          icon: const Icon(Icons.logout, size: 18),
+          label: const Text('Log out'),
+          style: TextButton.styleFrom(
+            textStyle: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+        ),
+      ],
+    );
+  }
+}

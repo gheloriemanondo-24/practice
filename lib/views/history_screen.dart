@@ -6,11 +6,14 @@ import '../viewmodels/order_view_model.dart';
 import '../widgets.dart';
 import 'confirmation_screen.dart';
 
-// Every order placed this session, newest first. Tap one to track it.
+// Every order this person placed, newest first. Tap one to track it.
 class HistoryScreen extends StatelessWidget {
-  const HistoryScreen({super.key, required this.store});
+  const HistoryScreen({super.key, required this.store, this.customerEmail});
 
   final OrderViewModel store;
+
+  // whose orders to show; when null, every order is shown
+  final String? customerEmail;
 
   void _open(BuildContext context, Order order) {
     Navigator.of(context).push(
@@ -27,7 +30,9 @@ class HistoryScreen extends StatelessWidget {
         child: ListenableBuilder(
           listenable: store,
           builder: (context, _) {
-            final orders = store.orders;
+            final orders = customerEmail == null
+                ? store.orders
+                : store.ordersBy(customerEmail);
             return ListView(
               padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
               children: [

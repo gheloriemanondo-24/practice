@@ -38,6 +38,11 @@ class SignUpScreen extends StatefulWidget {
 }
 
 class _SignUpScreenState extends State<SignUpScreen> {
+  // Validate a field only after the person has touched THAT field. Set it on
+  // each field, not on the Form: a Form-level setting validates every field as
+  // soon as any one of them changes.
+  static const _auto = AutovalidateMode.onUserInteraction;
+
   // Lets us call validate() on the whole form at once.
   final _formKey = GlobalKey<FormState>();
 
@@ -176,14 +181,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
             // ---- Step 2: the form ----------------------------------------
             Form(
               key: _formKey,
-              // Show a field's error after the person has touched it, not
-              // before. Stops the whole form from being red on first open.
-              autovalidateMode: AutovalidateMode.onUserInteraction,
               child: Column(
                 children: [
                   // Full name
                   TextFormField(
                     controller: _name,
+                    autovalidateMode: _auto,
                     enabled: !_busy,
                     textCapitalization: TextCapitalization.words,
                     textInputAction: TextInputAction.next,
@@ -199,13 +202,16 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   // ID number. The label, hint and format change with the role.
                   TextFormField(
                     key: _idKey,
+                    autovalidateMode: _auto,
                     controller: _id,
                     enabled: !_busy,
                     textInputAction: TextInputAction.next,
                     // Only letters, digits and "-" can be typed, and letters
                     // are shown in capitals ("fac-12" -> "FAC-12").
                     inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9-]')),
+                      FilteringTextInputFormatter.allow(
+                        RegExp(r'[A-Za-z0-9-]'),
+                      ),
                       _UpperCaseFormatter(),
                       LengthLimitingTextInputFormatter(10),
                     ],
@@ -221,6 +227,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     const SizedBox(height: 14),
                     DropdownButtonFormField<String>(
                       value: _stall,
+                      autovalidateMode: _auto,
                       isExpanded: true,
                       dropdownColor: AppColors.card,
                       decoration: const InputDecoration(
@@ -248,6 +255,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   // Email
                   TextFormField(
                     controller: _email,
+                    autovalidateMode: _auto,
                     enabled: !_busy,
                     keyboardType: TextInputType.emailAddress,
                     textInputAction: TextInputAction.next,
@@ -269,6 +277,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   // Password
                   TextFormField(
                     controller: _password,
+                    autovalidateMode: _auto,
                     enabled: !_busy,
                     obscureText: _hidePassword,
                     textInputAction: TextInputAction.next,
@@ -303,6 +312,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   // Confirm password
                   TextFormField(
                     key: _confirmKey,
+                    autovalidateMode: _auto,
                     controller: _confirm,
                     enabled: !_busy,
                     obscureText: _hidePassword,
@@ -316,7 +326,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     decoration: const InputDecoration(
                       labelText: 'Confirm password',
                     ),
-                    validator: (v) => validateConfirmPassword(v, _password.text),
+                    validator: (v) =>
+                        validateConfirmPassword(v, _password.text),
                   ),
                 ],
               ),

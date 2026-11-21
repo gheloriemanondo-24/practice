@@ -1,30 +1,236 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:practice/main.dart';
+import 'package:campuseats/main.dart';
+import 'package:campuseats/viewmodels/auth_view_model.dart';
+import 'package:campuseats/viewmodels/order_view_model.dart';
+
+Future<void> pumpApp(WidgetTester tester) async {
+  // tall screen so every form field is built
+  tester.view.physicalSize = const Size(800, 2400);
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+
+  await tester.pumpWidget(
+    CampusEatsApp(store: OrderViewModel(), auth: AuthViewModel()),
+  );
+}
+
+Future<void> typeInto(WidgetTester tester, String label, String text) async {
+  await tester.enterText(find.widgetWithText(TextFormField, label), text);
+}
+
+Future<void> logIn(
+  WidgetTester tester, {
+  required String email,
+  required String password,
+}) async {
+  await typeInto(tester, 'Email', email);
+  await typeInto(tester, 'Password', password);
+  await tester.tap(find.text('LOG IN'));
+  await tester.pumpAndSettle();
+}
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('app opens on the login screen', (tester) async {
+    await pumpApp(tester);
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    expect(find.text('LOG IN'), findsOneWidget);
+    expect(find.text('Student'), findsOneWidget);
+    expect(find.text('Teacher'), findsOneWidget);
+    expect(find.text('ORDER FOOD'), findsNothing);
+  });
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
+  testWidgets('student can log in and place an order', (tester) async {
+    await pumpApp(tester);
+    await logIn(tester, email: 'student@campus.edu', password: 'student123');
+
+    expect(find.text('Kumusta, Maria'), findsOneWidget);
+    expect(find.text('Student'), findsOneWidget);
+    expect(find.text("Aling Nena's Karinderya"), findsOneWidget);
+
+    await tester.tap(find.text('ORDER FOOD'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('ORDERING FROM'), findsOneWidget);
+    expect(find.text('YOUR ORDER'), findsOneWidget);
+    expect(find.text('Chicken Adobo with Rice'), findsOneWidget);
+  });
+
+  testWidgets('wrong password shows an error', (tester) async {
+    await pumpApp(tester);
+    await logIn(tester, email: 'student@campus.edu', password: 'nope-nope');
+
+    expect(find.text('Wrong email or password.'), findsOneWidget);
+    expect(find.text('ORDER FOOD'), findsNothing);
+  });
+
+  testWidgets('teacher account cannot log in as a student', (tester) async {
+    await pumpApp(tester);
+    await logIn(tester, email: 'teacher@campus.edu', password: 'teacher123');
+
+    expect(find.textContaining('registered as a teacher'), findsOneWidget);
+    expect(find.text('ORDER FOOD'), findsNothing);
+  });
+
+  testWidgets('teacher can log in after choosing Teacher', (tester) async {
+    await pumpApp(tester);
+    await tester.tap(find.text('Teacher'));
+    await tester.pump();
+    await logIn(tester, email: 'teacher@campus.edu', password: 'teacher123');
+
+    expect(find.text('Kumusta, Jose'), findsOneWidget);
+    expect(find.text('Teacher'), findsOneWidget);
+  });
+
+  testWidgets('sign up validates the form', (tester) async {
+    await pumpApp(tester);
+    await tester.tap(find.text('Create an account'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('CREATE ACCOUNT'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Enter your full name'), findsOneWidget);
+    expect(find.text('Enter your email'), findsOneWidget);
+    expect(find.text('Create a password'), findsOneWidget);
+  });
+
+  testWidgets('new teacher can sign up and land on home', (tester) async {
+    await pumpApp(tester);
+    await tester.tap(find.text('Create an account'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Teacher'));
+    await tester.pump();
+    await typeInto(tester, 'Full name', 'Ana Dela Cruz');
+    await typeInto(tester, 'Faculty ID', 'FAC-9001');
+    await typeInto(tester, 'Email', 'ana@campus.edu');
+    await typeInto(tester, 'Password', 'secret123');
+    await typeInto(tester, 'Confirm password', 'secret123');
+    await tester.tap(find.text('CREATE ACCOUNT'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Kumusta, Ana'), findsOneWidget);
+    expect(find.text('Teacher'), findsOneWidget);
+    expect(find.text('ORDER FOOD'), findsOneWidget);
+  });
+
+  testWidgets('log out returns to the login screen', (tester) async {
+    await pumpApp(tester);
+    await logIn(tester, email: 'student@campus.edu', password: 'student123');
+
+    await tester.tap(find.text('Log out'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('LOG IN'), findsOneWidget);
+    expect(find.text('ORDER FOOD'), findsNothing);
+  });
+
+  testWidgets('stall staff log in and manage their own stall', (tester) async {
+    await pumpApp(tester);
+    await tester.tap(find.text('Stall staff'));
+    await tester.pump();
+    await logIn(tester, email: 'staff@campus.edu', password: 'staff123');
+
+    expect(find.text('Kumusta, Nena'), findsOneWidget);
+    expect(find.text('MANAGE MY STALL'), findsOneWidget);
+    expect(find.text('ORDER FOOD'), findsNothing);
+
+    await tester.tap(find.text('MANAGE MY STALL'));
+    await tester.pumpAndSettle();
+
+    expect(find.text("Aling Nena's Karinderya"), findsOneWidget);
+    expect(find.text('INCOMING ORDERS'), findsOneWidget);
+  });
+
+  testWidgets('students cannot see stall management', (tester) async {
+    await pumpApp(tester);
+    await logIn(tester, email: 'student@campus.edu', password: 'student123');
+
+    expect(find.text('MANAGE MY STALL'), findsNothing);
+    expect(find.text('ORDER HISTORY'), findsOneWidget);
+  });
+
+  testWidgets('stall staff sign up must choose a stall', (tester) async {
+    await pumpApp(tester);
+    await tester.tap(find.text('Create an account'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Stall staff'));
     await tester.pump();
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    await tester.tap(find.text('CREATE ACCOUNT'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Choose the stall you work at'), findsOneWidget);
+  });
+  // ---- Registration validation -------------------------------------------
+
+  testWidgets('sign up shows field-specific errors for bad input', (
+    tester,
+  ) async {
+    await pumpApp(tester);
+    await tester.tap(find.text('Create an account'));
+    await tester.pumpAndSettle();
+
+    await typeInto(tester, 'Full name', 'Ana');
+    await typeInto(tester, 'Student ID', '123');
+    await typeInto(tester, 'Email', 'not-an-email');
+    await typeInto(tester, 'Password', 'abc');
+    await typeInto(tester, 'Confirm password', 'xyz');
+    await tester.tap(find.text('CREATE ACCOUNT'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Enter your first and last name'), findsOneWidget);
+    expect(find.text('Use the format 2024-00123'), findsOneWidget);
+    expect(find.text('Enter a valid email address'), findsOneWidget);
+    expect(find.text('Use at least 8 characters'), findsOneWidget);
+    expect(find.text('Passwords do not match'), findsOneWidget);
+  });
+
+  testWidgets('sign up rejects an email that is already registered', (
+    tester,
+  ) async {
+    await pumpApp(tester);
+    await tester.tap(find.text('Create an account'));
+    await tester.pumpAndSettle();
+
+    await typeInto(tester, 'Full name', 'Maria Santos');
+    await typeInto(tester, 'Student ID', '2024-00123');
+    await typeInto(tester, 'Email', 'student@campus.edu'); // demo account
+    await typeInto(tester, 'Password', 'secret123');
+    await typeInto(tester, 'Confirm password', 'secret123');
+    await tester.tap(find.text('CREATE ACCOUNT'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('already exists'), findsOneWidget);
+    expect(find.text('CREATE ACCOUNT'), findsOneWidget); // still on the form
+  });
+
+  testWidgets('switching role clears the ID field', (tester) async {
+    await pumpApp(tester);
+    await tester.tap(find.text('Create an account'));
+    await tester.pumpAndSettle();
+
+    await typeInto(tester, 'Student ID', '2024-00123');
+    await tester.tap(find.text('Teacher'));
+    await tester.pump();
+
+    final idField = tester.widget<TextFormField>(
+      find.widgetWithText(TextFormField, 'Faculty ID'),
+    );
+    expect(idField.controller!.text, isEmpty);
+  });
+
+  testWidgets('password checklist updates while typing', (tester) async {
+    await pumpApp(tester);
+    await tester.tap(find.text('Create an account'));
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(Icons.check_circle_outline), findsNothing);
+    await typeInto(tester, 'Password', 'secret123');
+    await tester.pump();
+    expect(find.byIcon(Icons.check_circle_outline), findsNWidgets(3));
   });
 }

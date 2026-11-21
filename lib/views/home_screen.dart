@@ -8,7 +8,6 @@ import '../widgets.dart';
 import 'confirmation_screen.dart';
 import 'history_screen.dart';
 import 'order_screen.dart';
-import 'stall_management_screen.dart';
 import 'stall_menu_screen.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -17,9 +16,10 @@ class HomeScreen extends StatelessWidget {
   final OrderViewModel store;
   final AuthViewModel auth;
 
-  // clear the cart and last order, then go back to the login screen
+  // clear the cart, then go back to the login screen. Orders are kept so the
+  // stalls can still see them.
   void _logOut() {
-    store.reset();
+    store.endSession();
     auth.logOut();
   }
 
@@ -33,14 +33,14 @@ class HomeScreen extends StatelessWidget {
         );
       return;
     }
-    store.startOrder();
+    store.startOrder(customer: auth.currentUser);
     Navigator.of(context).push(
       MaterialPageRoute<void>(builder: (_) => OrderScreen(store: store)),
     );
   }
 
   void _track(BuildContext context) {
-    final order = store.lastOrder;
+    final order = store.lastOrderBy(auth.currentUser?.email);
     if (order == null) {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
@@ -58,33 +58,26 @@ class HomeScreen extends StatelessWidget {
 
   void _history(BuildContext context) {
     Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => HistoryScreen(store: store)),
-    );
-  }
-
-  void _manageStall(BuildContext context, String stallName) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) =>
-            StallManagementScreen(store: store, placeName: stallName),
+      MaterialPageRoute<void>(builder: (_) => HistoryScreen(
+          store: store,
+          customerEmail: auth.currentUser?.email,
+        ),
       ),
     );
   }
 
   // opens a stall's menu and details; customers can order from there
-  void _viewMenu(BuildContext context, Place place, bool canOrder) {
+  void _viewMenu(BuildContext context, Place place) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => StallMenuScreen(
           store: store,
           placeName: place.name,
-          onOrder: canOrder
-              ? () {
-                  store.selectPlace(place);
-                  Navigator.of(context).pop();
-                  _order(context);
-                }
-              : null,
+          onOrder: () {
+            store.selectPlace(place);
+            Navigator.of(context).pop();
+            _order(context);
+          },
         ),
       ),
     );
@@ -97,16 +90,14 @@ class HomeScreen extends StatelessWidget {
         child: ListenableBuilder(
           listenable: store,
           builder: (context, _) {
-            final active = store.lastOrder;
-            final isStaff = auth.currentUser?.role == UserRole.stallStaff;
-            final stall = auth.currentUser?.stallName;
+            final active = store.lastOrderBy(auth.currentUser?.email);
             return ListView(
               padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
               children: [
                 const TopBar(),
                 const SizedBox(height: 12),
                 if (auth.currentUser != null)
-                  _UserStrip(user: auth.currentUser!, onLogOut: _logOut),
+                  UserStrip(user: auth.currentUser!, onLogOut: _logOut),
                 const SizedBox(height: 28),
                 const Text.rich(
                   TextSpan(
@@ -136,30 +127,23 @@ class HomeScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 28),
-                if (isStaff && stall != null)
-                  BigButton(
-                    label: 'MANAGE MY STALL',
-                    onPressed: () => _manageStall(context, stall),
-                  )
-                else ...[
-                  BigButton(
-                    label: 'ORDER FOOD',
-                    onPressed: () => _order(context),
-                  ),
-                  const SizedBox(height: 12),
-                  BigButton(
-                    label: 'TRACK MY ORDER',
-                    kind: BigButtonKind.outline,
-                    onPressed: () => _track(context),
-                  ),
-                  const SizedBox(height: 12),
-                  BigButton(
-                    label: 'ORDER HISTORY',
-                    kind: BigButtonKind.outline,
-                    onPressed: () => _history(context),
-                  ),
-                ],
-                if (active != null && !isStaff) ...[
+                BigButton(
+                  label: 'ORDER FOOD',
+                  onPressed: () => _order(context),
+                ),
+                const SizedBox(height: 12),
+                BigButton(
+                  label: 'TRACK MY ORDER',
+                  kind: BigButtonKind.outline,
+                  onPressed: () => _track(context),
+                ),
+                const SizedBox(height: 12),
+                BigButton(
+                  label: 'ORDER HISTORY',
+                  kind: BigButtonKind.outline,
+                  onPressed: () => _history(context),
+                ),
+                if (active != null) ...[
                   const SizedBox(height: 16),
                   _ActiveOrderStrip(
                     order: active,
@@ -174,7 +158,7 @@ class HomeScreen extends StatelessWidget {
                     place: place,
                     selected: place == store.selectedPlace,
                     onTap: () => store.selectPlace(place),
-                    onViewMenu: () => _viewMenu(context, place, !isStaff),
+                    onViewMenu: () => _viewMenu(context, place),
                   ),
               ],
             );
@@ -308,65 +292,6 @@ class _ActiveOrderStrip extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-// "Kumusta, Maria" with a role badge and a log out button
-class _UserStrip extends StatelessWidget {
-  const _UserStrip({required this.user, required this.onLogOut});
-
-  final AppUser user;
-  final VoidCallback onLogOut;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: Wrap(
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: 10,
-            runSpacing: 6,
-            children: [
-              Text(
-                'Kumusta, ${user.firstName}',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 3,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.tomatoSoft,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: AppColors.rule),
-                ),
-                child: Text(
-                  user.role.label,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.muted,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        TextButton.icon(
-          onPressed: onLogOut,
-          icon: const Icon(Icons.logout, size: 18),
-          label: const Text('Log out'),
-          style: TextButton.styleFrom(
-            textStyle: const TextStyle(fontWeight: FontWeight.w700),
-          ),
-        ),
-      ],
     );
   }
 }

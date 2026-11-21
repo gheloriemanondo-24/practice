@@ -255,6 +255,9 @@ class Order {
     required this.pickup,
     required this.lines,
     required this.placedAt,
+    this.customerName = 'Guest',
+    this.customerEmail,
+    this.customerRole = UserRole.student,
   });
 
   final int number;
@@ -262,6 +265,11 @@ class Order {
   final DateTime pickup;
   final List<CartLine> lines;
   final DateTime placedAt;
+
+  // who ordered, so the stall can see it and customers only see their own
+  final String customerName;
+  final String? customerEmail;
+  final UserRole customerRole;
   OrderStatus status = OrderStatus.placed;
 
   String get label => '#${number.toString().padLeft(4, '0')}';

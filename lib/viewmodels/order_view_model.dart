@@ -9,6 +9,8 @@ class OrderViewModel extends ChangeNotifier {
   List<CartLine> _cart = [];
   List<DateTime> _slots = [];
   DateTime? _pickup;
+  // who is placing the current order (null in tests, shown as "Guest")
+  AppUser? _customer;
   // every placed order, newest first (this is the order history)
   final List<Order> _orders = [];
   int _nextNumber = 1;
@@ -28,13 +30,26 @@ class OrderViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  // called on log out so the next person starts clean
+  // Called on log out. Clears the cart and selection so the next person starts
+  // clean, but keeps orders and stall edits: they belong to the stalls, so a
+  // stall staff member who logs in next still sees what students ordered.
+  void endSession() {
+    _selectedPlace = _places.first;
+    _cart = [];
+    _slots = [];
+    _pickup = null;
+    _customer = null;
+    notifyListeners();
+  }
+
+  // Wipes everything, orders and stall edits included (a full demo reset).
   void reset() {
     _places = List.of(kPlaces);
     _selectedPlace = _places.first;
     _cart = [];
     _slots = [];
     _pickup = null;
+    _customer = null;
     _orders.clear();
     notifyListeners();
   }
@@ -42,7 +57,8 @@ class OrderViewModel extends ChangeNotifier {
   // called when the student taps "Order food" Starts a fresh cart
   // pre-filled with the stall's first two dishes like the mockup
   // and builds fresh pickup slots
-  void startOrder() {
+  void startOrder({AppUser? customer}) {
+    _customer = customer;
     final menu = _selectedPlace.menu.where((m) => m.available);
     _cart = [for (final item in menu.take(2)) CartLine(item.name, item.price)];
     _slots = _buildSlots(_selectedPlace);
@@ -97,6 +113,9 @@ class OrderViewModel extends ChangeNotifier {
       pickup: _pickup!,
       lines: _cart.map((l) => CartLine(l.name, l.price, l.qty)).toList(),
       placedAt: DateTime.now(),
+      customerName: _customer?.name ?? 'Guest',
+      customerEmail: _customer?.email,
+      customerRole: _customer?.role ?? UserRole.student,
     );
     _orders.insert(0, order);
     notifyListeners();
@@ -122,11 +141,35 @@ class OrderViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  // Stall staff can turn an order down while it is waiting or being prepared
+  // (for example when an ingredient ran out). The customer sees it cancelled.
+  bool canDecline(Order order) =>
+      order.status == OrderStatus.placed ||
+      order.status == OrderStatus.preparing;
+
+  void declineOrder(Order order) {
+    if (!canDecline(order)) return;
+    order.status = OrderStatus.cancelled;
+    notifyListeners();
+  }
+
   // orders for one stall, newest first
   List<Order> ordersFor(Place place) => [
     for (final order in _orders)
       if (order.place.name == place.name) order,
   ];
+
+  // orders placed by one person (matched by email), newest first
+  List<Order> ordersBy(String? email) => [
+    for (final order in _orders)
+      if (email != null && order.customerEmail == email) order,
+  ];
+
+  // that person's most recent order, or null if they have none
+  Order? lastOrderBy(String? email) {
+    final mine = ordersBy(email);
+    return mine.isEmpty ? null : mine.first;
+  }
 
   // ---- Stall management ----
 
